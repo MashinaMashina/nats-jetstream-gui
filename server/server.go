@@ -1,10 +1,11 @@
-package main
+package server
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand"
 	"net/http"
 	"os"
@@ -40,7 +41,7 @@ func NewServer(log zerolog.Logger) *Server {
 	}
 }
 
-func (s *Server) Run(addr string) error {
+func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error {
 	go s.TranslateStatistics()
 
 	http.HandleFunc("/read/", s.ReadStreamMessage)
@@ -48,10 +49,16 @@ func (s *Server) Run(addr string) error {
 	http.HandleFunc("/streams/", s.GetStreams)
 	http.HandleFunc("/ws/", s.ws.OpenConnection)
 
-	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir("./public/build/static"))))
+	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./public/build/index.html")
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexContent)
 	})
 
 	s.log.Info().Str("addr", addr).Msg("starting server")
