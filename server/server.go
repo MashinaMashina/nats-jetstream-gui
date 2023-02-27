@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+	"nats-jetstream-gui/pkg/middleware"
 )
 
 type Response struct {
@@ -44,10 +45,10 @@ func NewServer(log zerolog.Logger) *Server {
 func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error {
 	go s.TranslateStatistics()
 
-	http.HandleFunc("/read/", s.ReadStreamMessage)
-	http.HandleFunc("/stream_info/", s.StreamInfo)
-	http.HandleFunc("/streams/", s.GetStreams)
-	http.HandleFunc("/ws/", s.ws.OpenConnection)
+	http.HandleFunc("/read/", middleware.AnyCORS(s.ReadStreamMessage))
+	http.HandleFunc("/stream_info/", middleware.AnyCORS(s.StreamInfo))
+	http.HandleFunc("/streams/", middleware.AnyCORS(s.GetStreams))
+	http.HandleFunc("/ws/", middleware.AnyCORS(s.ws.OpenConnection))
 
 	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 
