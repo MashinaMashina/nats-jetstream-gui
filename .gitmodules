@@ -1,0 +1,3 @@
+[submodule "nats-jetstream-gui-front"]
+	path = public
+	url = https://github.com/MadDev3/nats-jetstream-gui-front.git
