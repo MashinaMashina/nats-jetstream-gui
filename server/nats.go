@@ -49,6 +49,7 @@ func NewNats(log zerolog.Logger, natsAddr, monitorAddr string) *Nats {
 		monitorAddr: monitorAddr,
 		httpClient:  http.DefaultClient,
 		log:         log,
+		active:      true,
 	}
 }
 
