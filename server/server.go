@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
-	"math/rand"
 	"net/http"
 	"os"
 
@@ -85,23 +83,26 @@ func (s *Server) StreamInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
-	stream := r.URL.Query().Get("stream")
+	subject := r.URL.Query().Get("subject")
 
-	if stream == "" {
-		s.response(w, fmt.Errorf("stream in query not specified"), nil)
+	if subject == "" {
+		s.response(w, fmt.Errorf("subject in query not specified"), nil)
 		return
 	}
 
-	s.response(w, s.nats.ReadOneMessage(stream), nil)
+	ack := false
+	if strAck := r.URL.Query().Get("ack"); strAck == "1" {
+		ack = true
+	}
+
+	msg, err := s.nats.ReadOneMessage(subject, ack)
+	s.response(w, err, msg)
 }
 
 func (s *Server) TranslateStatistics() {
 	stats := s.nats.Statistics(context.Background())
 
 	for stat := range stats {
-		stat.Messages /= int64(rand.Intn(4) + 1)
-		stat.Bytes /= int64(rand.Intn(400) + 1)
-
 		s.ws.SendAll(Message{
 			Type:    MessageTypeStatistic,
 			Message: stat,
@@ -109,13 +110,14 @@ func (s *Server) TranslateStatistics() {
 	}
 }
 
-func (s *Server) response(w io.Writer, err error, resp any) {
+func (s *Server) response(w http.ResponseWriter, err error, resp any) {
 	var msg *string
 	if err != nil {
 		errMsg := err.Error()
 		msg = &errMsg
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(Response{
 		Error:    msg,
 		Response: resp,

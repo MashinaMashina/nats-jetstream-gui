@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,26 +54,41 @@ func NewNats(log zerolog.Logger, natsAddr, monitorAddr string) *Nats {
 	}
 }
 
-func (n *Nats) ReadOneMessage(stream string) error {
+type OneMessage struct {
+	Subject string      `json:"subject"`
+	Data    string      `json:"data"`
+	Header  nats.Header `json:"header"`
+}
+
+func (n *Nats) ReadOneMessage(subject string, ack bool) (OneMessage, error) {
 	if err := n.checkActive(); err != nil {
-		return err
+		return OneMessage{}, err
 	}
 
-	subscribe, err := n.js.PullSubscribe(stream, "nats-gui")
+	subscribe, err := n.js.PullSubscribe(subject, "nats-gui-2")
 	if err != nil {
-		return fmt.Errorf("subscribe to stream: %w", err)
+		return OneMessage{}, fmt.Errorf("subscribe to stream: %w", err)
 	}
+
+	defer subscribe.Drain()
+	defer subscribe.Unsubscribe()
+
 	msgs, err := subscribe.Fetch(1)
 	if err != nil {
-		return fmt.Errorf("fetch message: %w", err)
+		return OneMessage{}, fmt.Errorf("fetch message: %w", err)
 	}
 
-	fmt.Println(msgs)
+	if ack {
+		if err = msgs[0].Ack(); err != nil {
+			return OneMessage{}, fmt.Errorf("ack message: %w", err)
+		}
+	}
 
-	subscribe.Unsubscribe()
-	subscribe.Drain()
-
-	return nil
+	return OneMessage{
+		Subject: msgs[0].Subject,
+		Data:    base64.StdEncoding.EncodeToString(msgs[0].Data),
+		Header:  msgs[0].Header,
+	}, nil
 }
 
 type StreamInfo struct {
@@ -88,7 +104,7 @@ func (n *Nats) GetActiveStreams() []StreamInfo {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
-	streamsChan := n.js.Streams()
+	streamsChan := n.js.Streams(nats.MaxWait(time.Millisecond * 100))
 	streams := make([]StreamInfo, 0, 8)
 
 cycle:
