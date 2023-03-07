@@ -14,7 +14,7 @@ type MessageType string
 
 const MessageTypeStatistic MessageType = "statistic"
 
-type Message struct {
+type WsMessage struct {
 	Type    MessageType `json:"type"`
 	Message any         `json:"message"`
 }
@@ -66,7 +66,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func (ws *Websockets) onMessage(client *WsClient, message []byte) {
-	var msg Message
+	var msg WsMessage
 	err := json.Unmarshal(message, &msg)
 	if err != nil {
 		ws.log.Error().Bytes("msg", message).Err(err).Msg("cannot unmarshal message")
@@ -76,13 +76,13 @@ func (ws *Websockets) onMessage(client *WsClient, message []byte) {
 	ws.Send(client, msg)
 }
 
-func (ws *Websockets) SendAll(message Message) {
+func (ws *Websockets) SendAll(message WsMessage) {
 	for client := range ws.clients {
 		ws.Send(client, message)
 	}
 }
 
-func (ws *Websockets) Send(writer io.Writer, message Message) {
+func (ws *Websockets) Send(writer io.Writer, message WsMessage) {
 	err := json.NewEncoder(writer).Encode(message)
 	if err != nil {
 		ws.log.Error().Err(err).Msg("sending message to websocket client")

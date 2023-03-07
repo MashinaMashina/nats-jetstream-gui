@@ -43,19 +43,14 @@ func NewServer(log zerolog.Logger) *Server {
 func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error {
 	go s.TranslateStatistics()
 
-	http.HandleFunc("/read/", middleware.AnyCORS(s.ReadStreamMessage))
-	http.HandleFunc("/stream_info/", middleware.AnyCORS(s.StreamInfo))
-	http.HandleFunc("/streams/", middleware.AnyCORS(s.GetStreams))
+	http.HandleFunc("/api/read/", middleware.AnyCORS(s.ReadStreamMessage))
+	http.HandleFunc("/api/stream_info/", middleware.AnyCORS(s.StreamInfo))
+	http.HandleFunc("/api/streams/", middleware.AnyCORS(s.GetStreams))
 	http.HandleFunc("/ws/", middleware.AnyCORS(s.ws.OpenConnection))
 
 	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(indexContent)
 	})
@@ -95,7 +90,7 @@ func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
 		ack = true
 	}
 
-	msg, err := s.nats.ReadOneMessage(subject, ack)
+	msg, err := s.nats.ReadMessage(subject, ack)
 	s.response(w, err, msg)
 }
 
@@ -103,7 +98,7 @@ func (s *Server) TranslateStatistics() {
 	stats := s.nats.Statistics(context.Background())
 
 	for stat := range stats {
-		s.ws.SendAll(Message{
+		s.ws.SendAll(WsMessage{
 			Type:    MessageTypeStatistic,
 			Message: stat,
 		})

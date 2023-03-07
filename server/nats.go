@@ -54,20 +54,20 @@ func NewNats(log zerolog.Logger, natsAddr, monitorAddr string) *Nats {
 	}
 }
 
-type OneMessage struct {
+type StreamMessage struct {
 	Subject string      `json:"subject"`
 	Data    string      `json:"data"`
 	Header  nats.Header `json:"header"`
 }
 
-func (n *Nats) ReadOneMessage(subject string, ack bool) (OneMessage, error) {
+func (n *Nats) ReadMessage(subject string, ack bool) (StreamMessage, error) {
 	if err := n.checkActive(); err != nil {
-		return OneMessage{}, err
+		return StreamMessage{}, err
 	}
 
-	subscribe, err := n.js.PullSubscribe(subject, "nats-gui-2")
+	subscribe, err := n.js.PullSubscribe(subject, "nats-gui")
 	if err != nil {
-		return OneMessage{}, fmt.Errorf("subscribe to stream: %w", err)
+		return StreamMessage{}, fmt.Errorf("subscribe to stream: %w", err)
 	}
 
 	defer subscribe.Drain()
@@ -75,21 +75,38 @@ func (n *Nats) ReadOneMessage(subject string, ack bool) (OneMessage, error) {
 
 	msgs, err := subscribe.Fetch(1)
 	if err != nil {
-		return OneMessage{}, fmt.Errorf("fetch message: %w", err)
+		return StreamMessage{}, fmt.Errorf("fetch message: %w", err)
 	}
 
 	if ack {
 		if err = msgs[0].Ack(); err != nil {
-			return OneMessage{}, fmt.Errorf("ack message: %w", err)
+			return StreamMessage{}, fmt.Errorf("ack message: %w", err)
+		}
+	} else {
+		if err = msgs[0].Nak(); err != nil {
+			return StreamMessage{}, fmt.Errorf("nak message: %w", err)
 		}
 	}
 
-	return OneMessage{
+	return StreamMessage{
 		Subject: msgs[0].Subject,
 		Data:    base64.StdEncoding.EncodeToString(msgs[0].Data),
 		Header:  msgs[0].Header,
 	}, nil
 }
+
+//func (n *Nats) SendMessage(subject string, message StreamMessage) error {
+//	if err := n.checkActive(); err != nil {
+//		return err
+//	}
+//
+//	msg, err := base64.StdEncoding.DecodeString(message.Data)
+//	if err != nil {
+//
+//	}
+//
+//	n.js.Publish(subject, )
+//}
 
 type StreamInfo struct {
 	Name     string `json:"name"`
