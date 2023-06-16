@@ -3,6 +3,8 @@
 
 Внимание: могут быть баги в самом неожиданном месте.
 
+![](docs/download.png)
+[Скачать](https://github.com/MashinaMashina/nats-jetstream-gui/releases)
 
 ![](docs/images/screen.jpg)
 
