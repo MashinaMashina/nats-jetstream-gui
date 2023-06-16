@@ -19,6 +19,9 @@ var staticFiles embed.FS
 func main() {
 	log := server.NewLogger()
 
+	wd, _ := os.Getwd()
+	log.Info().Str("dir", wd).Msg("working dir")
+
 	addr := ":8080"
 	if val := os.Getenv("NATS_GUI_ADDR"); val != "" {
 		addr = val
