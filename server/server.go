@@ -98,21 +98,21 @@ func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) SendStreamMessage(w http.ResponseWriter, r *http.Request) {
-	subject := r.URL.Query().Get("subject")
+	if err := r.ParseForm(); err != nil {
+		s.response(w, fmt.Errorf("parsing post data: %w", err), nil)
+		return
+	}
+
+	subject := r.FormValue("subject")
 
 	if subject == "" {
 		s.response(w, fmt.Errorf("subject in query not specified"), nil)
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		s.response(w, fmt.Errorf("parsing post data: %w", err), nil)
-		return
-	}
-
 	err := s.nats.SendMessage(StreamMessage{
 		Subject: subject,
-		Data:    r.PostFormValue("data"),
+		Data:    r.FormValue("data"),
 	})
 	s.response(w, err, nil)
 }
