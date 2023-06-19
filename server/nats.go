@@ -70,7 +70,7 @@ func (n *Nats) ReadMessage(subject string, ack bool) (StreamMessage, error) {
 		return StreamMessage{}, fmt.Errorf("subscribe to stream: %w", err)
 	}
 
-	defer subscribe.Drain()
+	//defer subscribe.Drain()
 	defer subscribe.Unsubscribe()
 
 	msgs, err := subscribe.Fetch(1)
@@ -95,25 +95,30 @@ func (n *Nats) ReadMessage(subject string, ack bool) (StreamMessage, error) {
 	}, nil
 }
 
-//func (n *Nats) SendMessage(subject string, message StreamMessage) error {
-//	if err := n.checkActive(); err != nil {
-//		return err
-//	}
-//
-//	msg, err := base64.StdEncoding.DecodeString(message.Data)
-//	if err != nil {
-//
-//	}
-//
-//	n.js.Publish(subject, )
-//}
+func (n *Nats) SendMessage(message StreamMessage) error {
+	if err := n.checkActive(); err != nil {
+		return err
+	}
+
+	bytes, err := base64.StdEncoding.DecodeString(message.Data)
+	if err != nil {
+		return fmt.Errorf("decoding base64 message: %w", err)
+	}
+
+	_, err = n.js.PublishAsync(message.Subject, bytes, nats.StallWait(time.Second*5))
+	if err != nil {
+		return fmt.Errorf("publish message: %w", err)
+	}
+
+	return nil
+}
 
 type StreamInfo struct {
 	Name     string `json:"name"`
 	Messages uint64 `json:"messages"`
 }
 
-func (n *Nats) GetActiveStreams() []StreamInfo {
+func (n *Nats) ActiveStreams() []StreamInfo {
 	if err := n.checkActive(); err != nil {
 		return nil
 	}
@@ -194,6 +199,42 @@ func (n *Nats) Statistics(ctx context.Context) <-chan JetStreamStat {
 	}()
 
 	return c
+}
+
+func (n *Nats) ActiveConsumers(subject string) []*nats.ConsumerInfo {
+	if err := n.checkActive(); err != nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+
+	ch := n.js.Consumers(subject, nats.MaxWait(time.Millisecond*100))
+	consumers := make([]*nats.ConsumerInfo, 0, 8)
+
+cycle:
+	for {
+		select {
+		case info, ok := <-ch:
+			if !ok {
+				break cycle
+			}
+
+			consumers = append(consumers, info)
+		case <-ctx.Done():
+			break cycle
+		}
+	}
+
+	return consumers
+}
+
+func (n *Nats) DeleteConsumer(subject string, consumer string) error {
+	if err := n.checkActive(); err != nil {
+		return nil
+	}
+
+	return n.js.DeleteConsumer(subject, consumer)
 }
 
 func (n *Nats) monitorRequestJson(path string, res any) error {

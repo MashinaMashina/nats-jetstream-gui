@@ -44,8 +44,11 @@ func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error 
 	go s.TranslateStatistics()
 
 	http.HandleFunc("/api/read/", middleware.AnyCORS(s.ReadStreamMessage))
+	http.HandleFunc("/api/send/", middleware.AnyCORS(s.SendStreamMessage))
 	http.HandleFunc("/api/stream_info/", middleware.AnyCORS(s.StreamInfo))
-	http.HandleFunc("/api/streams/", middleware.AnyCORS(s.GetStreams))
+	http.HandleFunc("/api/streams/", middleware.AnyCORS(s.ActiveStreams))
+	http.HandleFunc("/api/consumers/", middleware.AnyCORS(s.ActiveConsumers))
+	http.HandleFunc("/api/delete_consumer/", middleware.AnyCORS(s.DeleteConsumer))
 	http.HandleFunc("/ws/", middleware.AnyCORS(s.ws.OpenConnection))
 
 	http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
@@ -60,8 +63,8 @@ func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error 
 	return http.ListenAndServe(addr, nil)
 }
 
-func (s *Server) GetStreams(w http.ResponseWriter, r *http.Request) {
-	s.response(w, nil, s.nats.GetActiveStreams())
+func (s *Server) ActiveStreams(w http.ResponseWriter, r *http.Request) {
+	s.response(w, nil, s.nats.ActiveStreams())
 }
 
 func (s *Server) StreamInfo(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +97,26 @@ func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, msg)
 }
 
+func (s *Server) SendStreamMessage(w http.ResponseWriter, r *http.Request) {
+	subject := r.URL.Query().Get("subject")
+
+	if subject == "" {
+		s.response(w, fmt.Errorf("subject in query not specified"), nil)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		s.response(w, fmt.Errorf("parsing post data: %w", err), nil)
+		return
+	}
+
+	err := s.nats.SendMessage(StreamMessage{
+		Subject: subject,
+		Data:    r.PostFormValue("data"),
+	})
+	s.response(w, err, nil)
+}
+
 func (s *Server) TranslateStatistics() {
 	stats := s.nats.Statistics(context.Background())
 
@@ -103,6 +126,37 @@ func (s *Server) TranslateStatistics() {
 			Message: stat,
 		})
 	}
+}
+
+func (s *Server) ActiveConsumers(w http.ResponseWriter, r *http.Request) {
+	stream := r.URL.Query().Get("stream")
+
+	if stream == "" {
+		s.response(w, fmt.Errorf("stream in query not specified"), nil)
+		return
+	}
+
+	info := s.nats.ActiveConsumers(stream)
+
+	s.response(w, nil, info)
+}
+
+func (s *Server) DeleteConsumer(w http.ResponseWriter, r *http.Request) {
+	stream := r.URL.Query().Get("stream")
+	consumer := r.URL.Query().Get("consumer")
+
+	if stream == "" {
+		s.response(w, fmt.Errorf("stream in query not specified"), nil)
+		return
+	}
+	if consumer == "" {
+		s.response(w, fmt.Errorf("consumer in query not specified"), nil)
+		return
+	}
+
+	err := s.nats.DeleteConsumer(stream, consumer)
+
+	s.response(w, err, nil)
 }
 
 func (s *Server) response(w http.ResponseWriter, err error, resp any) {
