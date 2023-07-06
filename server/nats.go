@@ -73,6 +73,8 @@ func (n *Nats) ReadMessage(subject string, ack bool) (StreamMessage, error) {
 	//defer subscribe.Drain()
 	defer subscribe.Unsubscribe()
 
+	//ack = true
+
 	msgs, err := subscribe.Fetch(1)
 	if err != nil {
 		return StreamMessage{}, fmt.Errorf("fetch message: %w", err)
@@ -235,6 +237,14 @@ func (n *Nats) DeleteConsumer(subject string, consumer string) error {
 	}
 
 	return n.js.DeleteConsumer(subject, consumer)
+}
+
+func (n *Nats) DeleteStream(name string) error {
+	if err := n.checkActive(); err != nil {
+		return nil
+	}
+
+	return n.js.DeleteStream(name)
 }
 
 func (n *Nats) monitorRequestJson(path string, res any) error {

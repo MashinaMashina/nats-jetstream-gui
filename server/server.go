@@ -47,6 +47,7 @@ func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error 
 	http.HandleFunc("/api/send/", middleware.AnyCORS(s.form(s.SendStreamMessage)))
 	http.HandleFunc("/api/stream_info/", middleware.AnyCORS(s.form(s.StreamInfo)))
 	http.HandleFunc("/api/streams/", middleware.AnyCORS(s.form(s.ActiveStreams)))
+	http.HandleFunc("/api/delete_stream/", middleware.AnyCORS(s.form(s.DeleteStream)))
 	http.HandleFunc("/api/consumers/", middleware.AnyCORS(s.form(s.ActiveConsumers)))
 	http.HandleFunc("/api/delete_consumer/", middleware.AnyCORS(s.form(s.DeleteConsumer)))
 	http.HandleFunc("/ws/", middleware.AnyCORS(s.ws.OpenConnection))
@@ -150,6 +151,19 @@ func (s *Server) DeleteConsumer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.nats.DeleteConsumer(stream, consumer)
+
+	s.response(w, err, nil)
+}
+
+func (s *Server) DeleteStream(w http.ResponseWriter, r *http.Request) {
+	stream := r.FormValue("stream")
+
+	if stream == "" {
+		s.response(w, fmt.Errorf("stream in query not specified"), nil)
+		return
+	}
+
+	err := s.nats.DeleteStream(stream)
 
 	s.response(w, err, nil)
 }
