@@ -184,9 +184,11 @@ func (s *Server) response(w http.ResponseWriter, err error, resp any) {
 
 func (s *Server) form(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			s.response(w, fmt.Errorf("parsing form data: %w", err), nil)
-			return
+		if r.Method == "POST" {
+			if err := r.ParseMultipartForm(1e7); err != nil {
+				s.response(w, fmt.Errorf("parsing form data: %w", err), nil)
+				return
+			}
 		}
 
 		next(w, r)
