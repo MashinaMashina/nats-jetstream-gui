@@ -178,23 +178,26 @@ func (n *Nats) Statistics(ctx context.Context) <-chan JetStreamStat {
 	go func() {
 		defer close(c)
 
+		delay := time.Second
+
 		var err error
 		var stat JetStreamStat
 		for {
 			if err = n.monitorRequestJson("jsz", &stat); err != nil {
 				n.log.Error().Err(err).Msg("getting monitor statistics")
-				return
+				delay *= 2
+			} else {
+				delay = time.Second
+				stat.Time = time.Now().Unix()
+
+				c <- stat
 			}
-
-			stat.Time = time.Now().Unix()
-
-			c <- stat
 
 			select {
 			case <-ctx.Done():
 				return
 
-			case <-time.After(time.Second):
+			case <-time.After(delay):
 				continue
 			}
 		}

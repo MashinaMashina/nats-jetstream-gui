@@ -17,13 +17,13 @@ type Response struct {
 	Response any     `json:"response"`
 }
 
-type Server struct {
+type API struct {
 	ws   *Websockets
 	nats *Nats
 	log  zerolog.Logger
 }
 
-func NewServer(log zerolog.Logger) *Server {
+func NewAPI(log zerolog.Logger) *API {
 	natsAddr := "nats://localhost:4222"
 	if val := os.Getenv("NATS_GUI_NATS_ADDR"); val != "" {
 		natsAddr = val
@@ -33,14 +33,14 @@ func NewServer(log zerolog.Logger) *Server {
 		natsMonitorAddr = val
 	}
 
-	return &Server{
+	return &API{
 		ws:   NewWebsockets(log),
 		nats: NewNats(log, natsAddr, natsMonitorAddr),
 		log:  log,
 	}
 }
 
-func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error {
+func (s *API) Run(addr string, indexContent []byte, staticFiles fs.FS) error {
 	go s.TranslateStatistics()
 
 	http.HandleFunc("/api/read/", middleware.AnyCORS(s.form(s.ReadStreamMessage)))
@@ -64,11 +64,11 @@ func (s *Server) Run(addr string, indexContent []byte, staticFiles fs.FS) error 
 	return http.ListenAndServe(addr, nil)
 }
 
-func (s *Server) ActiveStreams(w http.ResponseWriter, r *http.Request) {
+func (s *API) ActiveStreams(w http.ResponseWriter, r *http.Request) {
 	s.response(w, nil, s.nats.ActiveStreams())
 }
 
-func (s *Server) StreamInfo(w http.ResponseWriter, r *http.Request) {
+func (s *API) StreamInfo(w http.ResponseWriter, r *http.Request) {
 	stream := r.FormValue("stream")
 
 	if stream == "" {
@@ -81,7 +81,7 @@ func (s *Server) StreamInfo(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, info)
 }
 
-func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
+func (s *API) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
 	subject := r.FormValue("subject")
 
 	if subject == "" {
@@ -98,7 +98,7 @@ func (s *Server) ReadStreamMessage(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, msg)
 }
 
-func (s *Server) SendStreamMessage(w http.ResponseWriter, r *http.Request) {
+func (s *API) SendStreamMessage(w http.ResponseWriter, r *http.Request) {
 	subject := r.FormValue("subject")
 
 	if subject == "" {
@@ -113,7 +113,7 @@ func (s *Server) SendStreamMessage(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, nil)
 }
 
-func (s *Server) TranslateStatistics() {
+func (s *API) TranslateStatistics() {
 	stats := s.nats.Statistics(context.Background())
 
 	for stat := range stats {
@@ -124,7 +124,7 @@ func (s *Server) TranslateStatistics() {
 	}
 }
 
-func (s *Server) ActiveConsumers(w http.ResponseWriter, r *http.Request) {
+func (s *API) ActiveConsumers(w http.ResponseWriter, r *http.Request) {
 	stream := r.FormValue("stream")
 
 	if stream == "" {
@@ -137,7 +137,7 @@ func (s *Server) ActiveConsumers(w http.ResponseWriter, r *http.Request) {
 	s.response(w, nil, info)
 }
 
-func (s *Server) DeleteConsumer(w http.ResponseWriter, r *http.Request) {
+func (s *API) DeleteConsumer(w http.ResponseWriter, r *http.Request) {
 	stream := r.FormValue("stream")
 	consumer := r.FormValue("consumer")
 
@@ -155,7 +155,7 @@ func (s *Server) DeleteConsumer(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, nil)
 }
 
-func (s *Server) DeleteStream(w http.ResponseWriter, r *http.Request) {
+func (s *API) DeleteStream(w http.ResponseWriter, r *http.Request) {
 	stream := r.FormValue("stream")
 
 	if stream == "" {
@@ -168,7 +168,7 @@ func (s *Server) DeleteStream(w http.ResponseWriter, r *http.Request) {
 	s.response(w, err, nil)
 }
 
-func (s *Server) response(w http.ResponseWriter, err error, resp any) {
+func (s *API) response(w http.ResponseWriter, err error, resp any) {
 	var msg *string
 	if err != nil {
 		errMsg := err.Error()
@@ -182,7 +182,7 @@ func (s *Server) response(w http.ResponseWriter, err error, resp any) {
 	})
 }
 
-func (s *Server) form(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+func (s *API) form(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			if err := r.ParseMultipartForm(1e7); err != nil {

@@ -27,8 +27,8 @@ func main() {
 		addr = val
 	}
 
-	serv := server.NewServer(log)
-	err := serv.Run(addr, indexContent, embedutil.NewPrefixFS("public/build/", staticFiles))
+	api := server.NewAPI(log)
+	err := api.Run(addr, indexContent, embedutil.NewPrefixFS("public/build/", staticFiles))
 	if err != nil {
 		log.Error().Err(err).Msg("running server")
 	}
