@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/MashinaMashina/nats-jetstream-gui/pkg/middleware"
 	"github.com/rs/zerolog"
-	"nats-jetstream-gui/pkg/middleware"
 )
 
 type Response struct {

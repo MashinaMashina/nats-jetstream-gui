@@ -5,9 +5,9 @@ import (
 	_ "embed"
 	"os"
 
+	"github.com/MashinaMashina/nats-jetstream-gui/pkg/embedutil"
+	"github.com/MashinaMashina/nats-jetstream-gui/server"
 	_ "github.com/joho/godotenv/autoload"
-	"nats-jetstream-gui/pkg/embedutil"
-	"nats-jetstream-gui/server"
 )
 
 //go:embed public/build/index.html

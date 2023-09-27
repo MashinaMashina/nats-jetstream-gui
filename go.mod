@@ -1,4 +1,4 @@
-module nats-jetstream-gui
+module github.com/MashinaMashina/nats-jetstream-gui
 
 go 1.19
 
