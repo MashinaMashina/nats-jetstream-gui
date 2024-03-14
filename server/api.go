@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
 
 	"github.com/MashinaMashina/nats-jetstream-gui/pkg/middleware"
 	"github.com/rs/zerolog"
@@ -23,11 +22,8 @@ type API struct {
 	log  zerolog.Logger
 }
 
-func NewAPI(log zerolog.Logger) *API {
-	natsAddr := "nats://localhost:4222"
-	if val := os.Getenv("NATS_GUI_NATS_ADDR"); val != "" {
-		natsAddr = val
-	}
+func NewAPI(log zerolog.Logger, natsAddr string) *API {
+	log.Info().Str("nats_addr", natsAddr).Msg("connecting to nats server")
 
 	return &API{
 		ws:   NewWebsockets(log),
