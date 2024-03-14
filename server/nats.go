@@ -3,9 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -18,15 +16,14 @@ type HTTPClient interface {
 }
 
 type Nats struct {
-	conn        *nats.Conn
-	js          nats.JetStreamContext
-	monitorAddr string
-	httpClient  HTTPClient
-	log         zerolog.Logger
-	active      bool
+	conn       *nats.Conn
+	js         nats.JetStreamContext
+	httpClient HTTPClient
+	log        zerolog.Logger
+	active     bool
 }
 
-func NewNats(log zerolog.Logger, natsAddr, monitorAddr string) *Nats {
+func NewNats(log zerolog.Logger, natsAddr string) *Nats {
 	nonActive := &Nats{active: false}
 	natsconn, err := nats.Connect(natsAddr,
 		nats.Timeout(time.Second*10),
@@ -45,12 +42,11 @@ func NewNats(log zerolog.Logger, natsAddr, monitorAddr string) *Nats {
 	}
 
 	return &Nats{
-		conn:        natsconn,
-		js:          jetstream,
-		monitorAddr: monitorAddr,
-		httpClient:  http.DefaultClient,
-		log:         log,
-		active:      true,
+		conn:       natsconn,
+		js:         jetstream,
+		httpClient: http.DefaultClient,
+		log:        log,
+		active:     true,
 	}
 }
 
@@ -116,8 +112,11 @@ func (n *Nats) SendMessage(message StreamMessage) error {
 }
 
 type StreamInfo struct {
-	Name     string `json:"name"`
-	Messages uint64 `json:"messages"`
+	Name      string `json:"name"`
+	Messages  uint64 `json:"messages"`
+	Bytes     uint64 `json:"bytes"`
+	Consumers int    `json:"consumers"`
+	Subjects  uint64 `json:"subjects"`
 }
 
 func (n *Nats) ActiveStreams() []StreamInfo {
@@ -140,8 +139,11 @@ cycle:
 			}
 
 			streams = append(streams, StreamInfo{
-				Name:     info.Config.Name,
-				Messages: info.State.Msgs,
+				Name:      info.Config.Name,
+				Messages:  info.State.Msgs,
+				Bytes:     info.State.Bytes,
+				Consumers: info.State.Consumers,
+				Subjects:  info.State.NumSubjects,
 			})
 		case <-ctx.Done():
 			break cycle
@@ -160,11 +162,11 @@ func (n *Nats) StreamInfo(stream string) (*nats.StreamInfo, error) {
 }
 
 type JetStreamStat struct {
-	Time      int64 `json:"time"`
-	Streams   int64 `json:"streams"`
-	Consumers int64 `json:"consumers"`
-	Messages  int64 `json:"messages"`
-	Bytes     int64 `json:"bytes"`
+	Time      int64  `json:"time"`
+	Streams   int    `json:"streams"`
+	Consumers int    `json:"consumers"`
+	Messages  uint64 `json:"messages"`
+	Bytes     uint64 `json:"bytes"`
 }
 
 func (n *Nats) Statistics(ctx context.Context) <-chan JetStreamStat {
@@ -178,26 +180,27 @@ func (n *Nats) Statistics(ctx context.Context) <-chan JetStreamStat {
 	go func() {
 		defer close(c)
 
-		delay := time.Second
-
-		var err error
 		var stat JetStreamStat
 		for {
-			if err = n.monitorRequestJson("jsz", &stat); err != nil {
-				n.log.Error().Err(err).Msg("getting monitor statistics")
-				delay *= 2
-			} else {
-				delay = time.Second
-				stat.Time = time.Now().Unix()
+			streams := n.ActiveStreams()
 
-				c <- stat
+			stat = JetStreamStat{
+				Time:    time.Now().Unix(),
+				Streams: len(streams),
 			}
+			for i := range streams {
+				stat.Bytes += streams[i].Bytes
+				stat.Messages += streams[i].Messages
+				stat.Consumers += streams[i].Consumers
+			}
+
+			c <- stat
 
 			select {
 			case <-ctx.Done():
 				return
 
-			case <-time.After(delay):
+			case <-time.After(time.Second):
 				continue
 			}
 		}
@@ -248,42 +251,6 @@ func (n *Nats) DeleteStream(name string) error {
 	}
 
 	return n.js.DeleteStream(name)
-}
-
-func (n *Nats) monitorRequestJson(path string, res any) error {
-	bytes, err := n.monitorRequest(path)
-	if err != nil {
-		return fmt.Errorf("making request: %w", err)
-	}
-
-	return json.Unmarshal(bytes, res)
-}
-
-func (n *Nats) monitorRequest(path string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	url := fmt.Sprintf("%s/%s", n.monitorAddr, path)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	response, err := n.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
-	}
-
-	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("invalid response code (%d)", response.StatusCode)
-	}
-
-	bytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	return bytes, nil
 }
 
 func (n *Nats) checkActive() error {

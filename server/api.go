@@ -28,14 +28,10 @@ func NewAPI(log zerolog.Logger) *API {
 	if val := os.Getenv("NATS_GUI_NATS_ADDR"); val != "" {
 		natsAddr = val
 	}
-	natsMonitorAddr := "http://localhost:8222"
-	if val := os.Getenv("NATS_GUI_MONITOR_ADDR"); val != "" {
-		natsMonitorAddr = val
-	}
 
 	return &API{
 		ws:   NewWebsockets(log),
-		nats: NewNats(log, natsAddr, natsMonitorAddr),
+		nats: NewNats(log, natsAddr),
 		log:  log,
 	}
 }
