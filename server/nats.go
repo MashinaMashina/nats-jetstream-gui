@@ -23,12 +23,21 @@ type Nats struct {
 	active     bool
 }
 
-func NewNats(log zerolog.Logger, natsAddr string) *Nats {
+func NewNats(log zerolog.Logger, natsAddr string, authToken string) *Nats {
 	nonActive := &Nats{active: false}
-	natsconn, err := nats.Connect(natsAddr,
-		nats.Timeout(time.Second*10),
-		nats.RetryOnFailedConnect(false),
-	)
+
+	opts := []nats.Option{
+		nats.Timeout(time.Second * 10),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(time.Second * 5),
+	}
+
+	if authToken != "" {
+		opts = append(opts, nats.Token(authToken))
+	}
+
+	natsconn, err := nats.Connect(natsAddr, opts...)
 
 	if err != nil {
 		log.Error().Err(fmt.Errorf("connecting to nats: %w", err)).Send()

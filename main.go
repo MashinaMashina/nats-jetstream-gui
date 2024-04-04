@@ -37,7 +37,7 @@ func main() {
 		natsAddr = val
 	}
 
-	api := server.NewAPI(log, natsAddr)
+	api := server.NewAPI(log, natsAddr, os.Getenv("NATS_GUI_NATS_AUTH_TOKEN"))
 	err = api.Run(addr, indexContent, embedutil.NewPrefixFS("public/build/", staticFiles))
 	if err != nil {
 		log.Error().Err(err).Msg("running server")

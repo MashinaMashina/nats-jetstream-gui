@@ -22,12 +22,12 @@ type API struct {
 	log  zerolog.Logger
 }
 
-func NewAPI(log zerolog.Logger, natsAddr string) *API {
+func NewAPI(log zerolog.Logger, natsAddr string, natsAuthToken string) *API {
 	log.Info().Str("nats_addr", natsAddr).Msg("connecting to nats server")
 
 	return &API{
 		ws:   NewWebsockets(log),
-		nats: NewNats(log, natsAddr),
+		nats: NewNats(log, natsAddr, natsAuthToken),
 		log:  log,
 	}
 }
